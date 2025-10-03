@@ -1,0 +1,11 @@
+C:\Users\Vitor\Desktop\wild guns modding\VSProject\Vitao\bin\x86\Debug\Vitao.dll
+C:\Users\Vitor\Desktop\wild guns modding\VSProject\Vitao\bin\x86\Debug\Vitao.pdb
+C:\Users\Vitor\Desktop\wild guns modding\VSProject\Vitao\bin\x86\Debug\0Harmony.dll
+C:\Users\Vitor\Desktop\wild guns modding\VSProject\Vitao\bin\x86\Debug\Assembly-CSharp.dll
+C:\Users\Vitor\Desktop\wild guns modding\VSProject\Vitao\bin\x86\Debug\BepInEx.dll
+C:\Users\Vitor\Desktop\wild guns modding\VSProject\Vitao\bin\x86\Debug\UnityEngine.dll
+C:\Users\Vitor\Desktop\wild guns modding\VSProject\Vitao\obj\x86\Debug\Vitao.csproj.AssemblyReference.cache
+C:\Users\Vitor\Desktop\wild guns modding\VSProject\Vitao\obj\x86\Debug\Vitao.csproj.CoreCompileInputs.cache
+C:\Users\Vitor\Desktop\wild guns modding\VSProject\Vitao\obj\x86\Debug\Vitao.csproj.CopyComplete
+C:\Users\Vitor\Desktop\wild guns modding\VSProject\Vitao\obj\x86\Debug\Vitao.dll
+C:\Users\Vitor\Desktop\wild guns modding\VSProject\Vitao\obj\x86\Debug\Vitao.pdb

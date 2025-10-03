@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.36128.20
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vitao", "Vitao.csproj", "{D3214BEC-E14C-4602-8744-C8DA98C9D81B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D3214BEC-E14C-4602-8744-C8DA98C9D81B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D3214BEC-E14C-4602-8744-C8DA98C9D81B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D3214BEC-E14C-4602-8744-C8DA98C9D81B}.Debug|x86.ActiveCfg = Debug|x86
+		{D3214BEC-E14C-4602-8744-C8DA98C9D81B}.Debug|x86.Build.0 = Debug|x86
+		{D3214BEC-E14C-4602-8744-C8DA98C9D81B}.Release|Any CPU.ActiveCfg = Debug|x86
+		{D3214BEC-E14C-4602-8744-C8DA98C9D81B}.Release|Any CPU.Build.0 = Debug|x86
+		{D3214BEC-E14C-4602-8744-C8DA98C9D81B}.Release|x86.ActiveCfg = Debug|x86
+		{D3214BEC-E14C-4602-8744-C8DA98C9D81B}.Release|x86.Build.0 = Debug|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1A561051-1811-4C03-88FF-C34A963632C7}
+	EndGlobalSection
+EndGlobal
