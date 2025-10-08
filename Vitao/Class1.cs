@@ -69,7 +69,7 @@ namespace WildGuns.SequentialStages
                     }
                     else
                     {
-                        Debug.LogWarning($"[VITAO] StageSelect.LoadStage: GameMain.m_StageClearCount ({count}) out of range (len={orderArr.Length}) — ignoring extra entry for stage index {index}.");
+                        Debug.LogWarning("[VITAO] StageSelect.LoadStage: GameMain.m_StageClearCount " + count + " out of range " + orderArr.Length + " ignoring extra entry for stage index: " + index);
                     }
                 }
                 else
