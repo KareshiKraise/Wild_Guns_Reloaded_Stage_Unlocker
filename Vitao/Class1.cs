@@ -4,6 +4,7 @@ using System;
 using System.Reflection;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace WildGuns.SequentialStages
 {
@@ -19,170 +20,108 @@ namespace WildGuns.SequentialStages
             Harmony harmony = new Harmony(PluginGuid);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
             Logger.LogInfo(PluginName + " " + PluginVersion + " loaded (Harmony prefix mode)");
-
-            // Ensure GameMain.m_StageClearOrder can hold up to 8 entries (for 8 stages)
-            try
-            {
-                Type gmType = AccessTools.TypeByName("GameMain");
-                FieldInfo orderField = AccessTools.Field(gmType, "m_StageClearOrder");
-                int[] current = orderField.GetValue(null) as int[];
-                if (current == null || current.Length < 8)
-                {
-                    int[] expanded = new int[8];
-                    if (current != null)
-                        Array.Copy(current, expanded, Math.Min(current.Length, expanded.Length));
-                    orderField.SetValue(null, expanded);
-                    Logger.LogInfo("[VITAO ]SequentialStages: Expanded GameMain.m_StageClearOrder to 8 slots in Awake()");
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.LogError("[VITAO ]SequentialStages: Failed to expand m_StageClearOrder: " + e);
-            }
         }
     }
 
+    // SAFE LoadStage patch: single place that writes to m_StageClearOrder is bounded-checked here.
     [HarmonyPatch]
-    internal static class EntryScore_Prefix
+    internal static class StageSelect_LoadStage_Patch
     {
         private static MethodBase TargetMethod()
         {
-            Type gmType = AccessTools.TypeByName("GameMain");
-            return AccessTools.Method(gmType, "EntryScore");
+            Type t = AccessTools.TypeByName("StageSelect");
+            return AccessTools.Method(t, "LoadStage");
         }
 
-        private static bool Prefix(ref int __result)
+        // Replace original LoadStage implementation with a safe one (skip original with return false).
+        private static bool Prefix(object __instance)
         {
             try
             {
+                Type sType = __instance.GetType();
                 Type gmType = AccessTools.TypeByName("GameMain");
-                // Replicate original logic but cap clear-order copy to destination length
 
-                // Determine index1 and score based on player mode
-                int startPlayerNum = (int)AccessTools.Field(gmType, "m_StartPlayerNum").GetValue(null);
-                int gameDifficulty = (int)AccessTools.Field(gmType, "m_GameDifficulty").GetValue(null);
+                // get m_StagePanel array and current panel under cursor
+                Array stagePanelArr = AccessTools.Field(sType, "m_StagePanel").GetValue(__instance) as Array;
+                float cyl = (float)AccessTools.Field(sType, "m_CylinderAgl").GetValue(null);
+                int panelIndex = (4 - (int)cyl) & 3;
+                object panel = stagePanelArr.GetValue(panelIndex);
 
-                // Get PlayerInfo[0]
-                MethodInfo getPlayerInfo = AccessTools.Method(gmType, "GetPlayerInfo", new Type[] { typeof(int) });
-                object pinfo0 = getPlayerInfo.Invoke(null, new object[] { 0 });
-                Type chrIndexType = AccessTools.Inner(gmType, "ChrIndex");
+                // get panel.m_Index and panel.m_Bonus
+                int index = (int)AccessTools.Field(panel.GetType(), "m_Index").GetValue(panel);
+                int bonus = (int)AccessTools.Field(panel.GetType(), "m_Bonus").GetValue(panel);
 
-                int index1;
-                int totalScoreVal;
-                if (startPlayerNum == 1)
+                // set GameMain.m_StageClearBonus
+                FieldInfo bonusField = AccessTools.Field(gmType, "m_StageClearBonus");
+                if (bonusField != null) bonusField.SetValue(null, bonus);
+
+                // Safe write into GameMain.m_StageClearOrder if space exists
+                FieldInfo orderField = AccessTools.Field(gmType, "m_StageClearOrder");
+                FieldInfo countField = AccessTools.Field(gmType, "m_StageClearCount");
+                int[] orderArr = orderField.GetValue(null) as int[];
+                int count = (int)countField.GetValue(null);
+
+                if (orderArr != null)
                 {
-                    // Single player
-                    object chrIndex = AccessTools.Field(pinfo0.GetType(), "m_ChrIndex").GetValue(pinfo0);
-                    int chrIdxInt = (int)chrIndex - 1;
-                    index1 = gameDifficulty * 4 + chrIdxInt;
-                    object scoreScramble = AccessTools.Field(pinfo0.GetType(), "m_Score").GetValue(pinfo0);
-                    totalScoreVal = (int)AccessTools.Field(scoreScramble.GetType(), "m_Value").GetValue(scoreScramble);
-                }
-                else if (startPlayerNum <= 0)
-                {
-                    __result = -1;
-                    return false;
+                    if (count >= 0 && count < orderArr.Length)
+                    {
+                        orderArr[count] = index;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[VITAO] StageSelect.LoadStage: GameMain.m_StageClearCount ({count}) out of range (len={orderArr.Length}) — ignoring extra entry for stage index {index}.");
+                    }
                 }
                 else
                 {
-                    // Multiplayer
-                    index1 = 16 + (startPlayerNum - 2);
-                    object totalScramble = AccessTools.Field(gmType, "m_TotalScore").GetValue(null);
-                    totalScoreVal = (int)AccessTools.Field(totalScramble.GetType(), "m_Value").GetValue(totalScramble);
+                    Debug.LogWarning("[VITAO] StageSelect.LoadStage: GameMain.m_StageClearOrder is null — skipping write.");
                 }
 
-                // Common.m_SaveData.m_ScoreEntry[index1]
-                Type commonType = AccessTools.TypeByName("Common");
-                object saveData = AccessTools.Field(commonType, "m_SaveData").GetValue(null);
-                // Access array element properly via reflection
-                Array scoreEntryArr = AccessTools.Field(saveData.GetType(), "m_ScoreEntry").GetValue(saveData) as Array;
-                GameMain.ScoreEntry se = (GameMain.ScoreEntry)scoreEntryArr.GetValue(index1);
+                // Call GameMain.InitStage()
+                MethodInfo initStage = AccessTools.Method(gmType, "InitStage");
+                if (initStage != null) initStage.Invoke(null, null);
 
-                // Write fields
-                se.m_Registrable = true;
-                se.m_Score = totalScoreVal;
-
-                int stageClearCount = (int)AccessTools.Field(gmType, "m_StageClearCount").GetValue(null);
-                se.m_ClearCount = stageClearCount;
-
-                int[] clearOrderSrc = (int[])AccessTools.Field(gmType, "m_StageClearOrder").GetValue(null);
-                int copyLen = Math.Min(clearOrderSrc.Length, se.m_ClearOrder.Length);
-                for (int i = 0; i < copyLen; ++i)
-                    se.m_ClearOrder[i] = clearOrderSrc[i];
-
-                // Characters/colors
-                for (int i = 0; i < 4; ++i)
+                // Load the scene corresponding to the selected index via StageNameTbl
+                string[] stageNameTbl = AccessTools.Field(sType, "StageNameTbl").GetValue(__instance) as string[];
+                if (stageNameTbl != null && index >= 0 && index < stageNameTbl.Length)
                 {
-                    object pinfo = getPlayerInfo.Invoke(null, new object[] { i });
-                    se.m_Character[i] = (GameMain.ChrIndex)AccessTools.Field(pinfo.GetType(), "m_ChrIndex").GetValue(pinfo);
-                    se.m_CharacterCol[i] = (int)AccessTools.Field(pinfo.GetType(), "m_Color").GetValue(pinfo);
+                    SceneManager.LoadScene(stageNameTbl[index]);
                 }
-
-                se.m_SingleDifficulty = gameDifficulty;
-                se.m_MultiPlayerNum = startPlayerNum;
-                for (int i = 0; i < 2; ++i)
+                else
                 {
-                    se.m_Ranks[i] = 0;
-                    se.m_RecordDates[i] = 0UL;
+                    Debug.LogError("[VITAO] StageSelect.LoadStage: invalid stage name lookup (index out of bounds).");
                 }
 
-                __result = index1;
-                return false; // skip original
+                // We handled the load — skip original method
+                return false;
             }
             catch (Exception ex)
             {
-                Debug.LogError("[VITAO ]SequentialStages: EntryScore prefix failed: " + ex);
-                return true; // fallback to original
+                Debug.LogError("[VITAO] StageSelect.LoadStage prefix failed: " + ex);
+                // Fall back to original if anything goes wrong
+                return true;
             }
         }
     }
 
-    [HarmonyPatch]
-    internal static class ExpandStageClearOrder
-    {
-        // Target the GameMain class static constructor to expand the array on load
-        static MethodBase TargetMethod()
-        {
-            Type gmType = AccessTools.TypeByName("GameMain");
-            return AccessTools.Constructor(gmType, Type.EmptyTypes, true); // static ctor
-        }
-
-        static void Postfix()
-        {
-            Type gmType = AccessTools.TypeByName("GameMain");
-            FieldInfo orderField = AccessTools.Field(gmType, "m_StageClearOrder");
-            int[] oldArray = orderField.GetValue(null) as int[];
-
-            // If null or shorter than 8, replace with new array of length 8
-            if (oldArray == null || oldArray.Length < 8)
-            {
-                orderField.SetValue(null, new int[8]);
-                Debug.Log("[VITAO ]SequentialStages: Expanded GameMain.m_StageClearOrder to 8 slots");
-            }
-        }
-    }
-
-
-
+    // Keep your Start prefix logic intact (unchanged)
     [HarmonyPatch]
     internal static class StageSelect_Start_Prefix
     {
         internal static class ModStageList
         {
             public static readonly GameMain.StageIndex[] stageList8 =
-
                 new GameMain.StageIndex[8]
                 {
-                GameMain.StageIndex.St1,
-                GameMain.StageIndex.St2,
-                GameMain.StageIndex.St3,
-                GameMain.StageIndex.St4,
-                GameMain.StageIndex.St5,
-                GameMain.StageIndex.St6,
-                GameMain.StageIndex.St7,
-                GameMain.StageIndex.St8
-
-            };
+                    GameMain.StageIndex.St1,
+                    GameMain.StageIndex.St2,
+                    GameMain.StageIndex.St3,
+                    GameMain.StageIndex.St4,
+                    GameMain.StageIndex.St5,
+                    GameMain.StageIndex.St6,
+                    GameMain.StageIndex.St7,
+                    GameMain.StageIndex.St8
+                };
         }
 
         private static MethodBase TargetMethod()
@@ -327,7 +266,6 @@ namespace WildGuns.SequentialStages
                             object panel = stagePanelArr.GetValue(panelIndex);
                             panelInit.Invoke(panel, new object[] { ModStageList.stageList8[stageToShowIndex], myClearNum, 0, slotIsMarkedClearParam });
 
-
                             // --- Update sprite map (cylinder display) like vanilla ---
                             object sprite = spriteMapArr.GetValue(panelIndex);
                             // Set the sprite number based on panel.m_Index
@@ -339,13 +277,6 @@ namespace WildGuns.SequentialStages
                             MethodInfo getComponent = AccessTools.Method(go.GetType(), "GetComponent", new Type[] { typeof(Type) });
                             object mapComp = getComponent.Invoke(go, new object[] { AccessTools.TypeByName("StageSelectMap") });
                             AccessTools.Method(mapComp.GetType(), "SetGrayOut", new Type[] { typeof(bool) }).Invoke(mapComp, new object[] { slotIsGrey });
-
-                            // Set Map gray state
-                            //object sprite = spriteMapArr.GetValue(panelIndex);
-                            //object go = AccessTools.Property(sprite.GetType(), "gameObject").GetValue(sprite, null);
-                            //MethodInfo getComponent = AccessTools.Method(go.GetType(), "GetComponent", new Type[] { typeof(Type) });
-                            //object mapComp = getComponent.Invoke(go, new object[] { AccessTools.TypeByName("StageSelectMap") });
-                            //AccessTools.Method(mapComp.GetType(), "SetGrayOut", new Type[] { typeof(bool) }).Invoke(mapComp, new object[] { slotIsGrey });
                         }
                     }
                 }
